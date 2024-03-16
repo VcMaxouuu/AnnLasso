@@ -5,15 +5,15 @@ import numpy as np
 from torch.nn.functional import normalize, linear
 
 class GeneralModel():
-    def __init__(self, name, warm_start, learning_rate, n_hidden_units, n_ista):
+    def __init__(self, name, warm_start, one_ista, learning_rate, n_hidden_units):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
         self.name = name
         self.warm_start = warm_start
+        self.one_ista = one_ista
 
         self.lr = learning_rate
         self.p2 = n_hidden_units
-        self.n_ista = n_ista
         self.activation = utils.Custom_act_fun()
 
         self.curves_sd, self.curves_ista = None, None
@@ -84,7 +84,7 @@ class GeneralModel():
         if self.curves_sd == None and self.curves_ista == None:
             print("No learning curve has been computed yet. Call 'fit' method first.")
             return
-        utils.draw_curvers(self.curves_sd, self.curves_ista)
+        return utils.draw_loss_curves(self.curves_sd, self.curves_ista)
 
     def apply_feature_selection(self, X):
         pass
@@ -95,7 +95,7 @@ class GeneralModel():
         return X
 
     def plot_layer1_status(self):
-        pass
+        return utils.draw_layer1_evolution(self.layer1_history)
 
 
     

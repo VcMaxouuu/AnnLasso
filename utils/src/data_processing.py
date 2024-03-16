@@ -21,7 +21,7 @@ def X_to_tensor(X, device=None) -> torch.Tensor:
         X = torch.as_tensor(X, dtype=torch.float64)
     if device:
         X = X.to(device)
-    norms = torch.norm(X, p=2, dim=0)
+    norms = torch.norm(X, p=2, dim=0) # ! A voir si autre normalisation possible 
     X = X / norms
     return X
 
