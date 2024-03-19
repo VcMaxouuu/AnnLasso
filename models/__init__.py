@@ -1,1 +1,2 @@
-from .main_models import *
+from .AnnLassoClassification import *
+from .AnnLassoRegression import *
