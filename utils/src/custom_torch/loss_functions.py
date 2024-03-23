@@ -27,7 +27,7 @@ class CustomClassificationLoss(nn.Module):
 
         """
         if target.dtype != torch.long:
-            target = torch.tensor(target, dtype=torch.long)
+            target = target.long()
         cross_entropy_loss = self.entropy(input, target)
         lasso_regularization = self.lamb * (torch.abs(layer1.weight).sum() + torch.abs(layer1.bias).sum())
         total_loss = cross_entropy_loss + lasso_regularization

@@ -15,7 +15,7 @@ class ModelArchitecture():
 
         self.lr = lr
         self.p2 = p2
-        self.activation = utils.Custom_act_fun()
+        self.activation = utils.Custom_act_fun(self.device)
 
         self.curves_sd, self.curves_ista = None, None
         self.trained = False
@@ -42,7 +42,7 @@ class ModelArchitecture():
         if self.trained:
             print(f"\t Training Time: {self.training_time:.3f} seconds")
             print(f"\t Training Set: {self.set_name if self.set_name is not None else 'N/A'}")
-        print(f"  Lambda_qut: {np.round(self.lambda_qut, 4)}\n")
+        print(f"  Lambda_qut: {np.round(self.lambda_qut.cpu().item(), 4)}\n")
         print("Layers:")
         print('―' * 20)
         if not self.trained:

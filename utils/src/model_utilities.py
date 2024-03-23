@@ -26,9 +26,11 @@ def important_features(layer1):
 def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
     print_epochs=False, init_weights=None, rel_err=1.e-12):
 
-    device = X.device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    X, y = X.to(device), y.to(device)
+
     n_features, p1 = X.shape
-    activation = utils.Custom_act_fun()
+    activation = utils.Custom_act_fun(device)
 
     if mode == "classification":
         loss_fn = utils.CustomClassificationLoss(lambda_=lambda_).to(device)
@@ -40,6 +42,7 @@ def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
 
     if init_weights is not None:
         layer1, layer2 = init_weights
+        layer1, layer2 = layer1.to(device), layer2.to(device)
     else:
         layer1 = nn.Linear(p1, p2, device=device, dtype=torch.float64)
         layer2 = nn.Linear(p2, 1, device=device, dtype=torch.float64)
@@ -49,13 +52,14 @@ def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
         layer1_output = activation(layer1(X))
         w2_normalized = normalize(layer2.weight, p=2, dim=1)
         logits = linear(layer1_output, w2_normalized, layer2.bias)
-        return logits.squeeze().to(X.device)
+        return logits.squeeze()
 
 
     #### Fitting - Gradient descent ####
     min_lr = 0.0001
     cost_fun_history, train_loss_history, epochs_history, layer1_history = [],[],[],{'weight': [], 'bias': []}
     
+
     if Sd:
         epoch, best_loss = 0, float('inf')
         optimizer = torch.optim.SGD(params=[*layer1.parameters(), *layer2.parameters()], lr=lr, momentum=0.9, dampening=0, nesterov=True)
