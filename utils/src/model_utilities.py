@@ -23,7 +23,7 @@ def important_features(layer1):
     return count, sorted(indices.tolist())
 
 
-def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
+def train_model(mode, loss_type, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
     print_epochs=False, init_weights=None, rel_err=1.e-12):
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -36,7 +36,10 @@ def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
         loss_fn = utils.CustomClassificationLoss(lambda_=lambda_).to(device)
         bare_loss_fn = nn.CrossEntropyLoss(reduction = 'mean').to(device)
     else:
-        loss_fn = utils.CustomRegressionLoss(lambda_=lambda_).to(device)
+        if loss_type==1:
+            loss_fn = utils.CustomRegressionLoss(lambda_=lambda_).to(device)
+        else: 
+            loss_fn = utils.CustomRegressionLoss2(lambda_=lambda_).to(device)
         bare_loss_fn = nn.MSELoss(reduction = 'mean').to(device)
         
 
@@ -107,13 +110,34 @@ def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
     #### Fitting - FISTA ####
     cost_fun_history, train_loss_history, epochs_history = [],[],[]
     if n_ista > 0:
-        epoch, best_loss = 0, float('inf')
-        optimizer_penalized = utils.FISTA(params=layer1.parameters(), lambda_=lambda_, lr=min_lr)
-        optimizer_unpenalized = utils.FISTA(params=layer2.parameters(), lambda_=0.0, lr=min_lr)
+        epoch, best_loss, lr = 0, float('inf'), lr
+        min_lr = lr/1000
+        optimizer_penalized = utils.FISTA(params=layer1.parameters(), lambda_=lambda_, lr=lr)
+        optimizer_unpenalized = utils.FISTA(params=layer2.parameters(), lambda_=0.0, lr=lr)
+        scheduler1 = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_penalized, 'min', patience=4, factor=0.99, min_lr=min_lr)
+        scheduler2 = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer_unpenalized, 'min', patience=4, factor=0.99, min_lr=min_lr)
+
         while True:
+            optimizer_penalized.zero_grad()
+            optimizer_unpenalized.zero_grad()
+
             y_pred = forward(X, layer1, layer2)
             loss = loss_fn(y_pred, y, layer1)
             bare_loss = bare_loss_fn(y_pred, y)
+
+            # Manual backward pass
+            gradients_bare_loss = grad(bare_loss, layer1.parameters(), retain_graph=True)
+            gradients_loss = grad(loss, layer2.parameters(), retain_graph=True)
+
+            for param, grad_value in zip(layer1.parameters(), gradients_bare_loss):
+                param.grad = grad_value
+            for param, grad_value in zip(layer2.parameters(), gradients_loss):
+                param.grad = grad_value
+            
+            optimizer_penalized.step()
+            optimizer_unpenalized.step()
+            scheduler1.step(loss)
+            scheduler2.step(loss)
 
             if epoch % 100 == 0:
                 cost_fun_history.append(loss.item())
@@ -125,31 +149,19 @@ def train_model(mode, X, y, lambda_, lr=0.01, p2=20, Sd=True, n_ista=-1,
                 if epoch != 0:
                     if print_epochs:
                         print(f"\tEpoch FISTA: {epoch} | Loss: {loss:.5f} | MSE on train set : {bare_loss:.5f} | w1 non zeros entries : {utils.important_features(layer1)} | learning rate : {optimizer_penalized.param_groups[0]['lr']:.6f}")
-                    if loss > best_loss:
-                        optimizer_penalized.param_groups[0]['lr'] *= .9
-                        optimizer_unpenalized.param_groups[0]['lr'] *= .9
-                    if torch.abs(loss-best_loss)/loss < rel_err:
-                        if print_epochs:
-                            print('\n\tISTA stopped: relative error reached.')
-                        break
-
-                    best_loss = loss
+                    if optimizer_penalized.param_groups[0]['lr'] == min_lr:
+                        if loss < best_loss: # First stopping criterion; loss not decreasing and minimum learning rate reached.
+                                best_loss = loss
+                        else:
+                            if print_epochs:
+                                print("\n\FISTA stopped: minimum learning rate reached and loss is no longer decreasing.\n")
+                            break
 
             if epoch == n_ista:
                 if print_epochs:
                     print("\n\tISTA stopped : maximum ISTA iterations reached.")
                 break
 
-            gradients_bare_loss = grad(bare_loss, layer1.parameters(), retain_graph=True)
-            gradients_loss = grad(loss, layer2.parameters(), retain_graph=True)
-
-            for param, grad_value in zip(layer1.parameters(), gradients_bare_loss):
-                param.grad = grad_value
-            for param, grad_value in zip(layer2.parameters(), gradients_loss):
-                param.grad = grad_value
-            
-            optimizer_penalized.step()
-            optimizer_unpenalized.step()
             epoch += 1
 
     curves_ista = {'epochs': np.array(epochs_history), 'cost':np.array(cost_fun_history),'train': np.array(train_loss_history)}

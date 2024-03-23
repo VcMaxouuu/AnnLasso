@@ -7,9 +7,10 @@ from tqdm import tqdm
 from models.ModelArchitecture import ModelArchitecture
 
 class AnnLassoRegression(ModelArchitecture):
-    def __init__(self, name=None, warm_start=True, one_ista=True, lr=0.01, p2=20):
+    def __init__(self, name=None, warm_start=True, one_ista=True, last_ista=10000, loss_type=1, lr=0.01, p2=20):
         super().__init__(name, warm_start, one_ista, lr, p2)
-       
+        self.loss_type = loss_type
+        self.last_ista = last_ista
 
     def fit(self, X_train, y_train, print_epochs=True, set_name=None):
         self.set_name = set_name
@@ -25,27 +26,25 @@ class AnnLassoRegression(ModelArchitecture):
         if self.warm_start:
             n_ista = 5000 if not self.one_ista else -1
             iterable = tqdm(range(-1, 6), desc="Lambda path progress") if not print_epochs else range(-1, 6)
-            self.curves_sd  = {np.exp(i)/(1+np.exp(i))*self.lambda_qut: None for i in range(-1, 6)}
-            self.curves_ista = {np.exp(i)/(1+np.exp(i))*self.lambda_qut: None for i in range(-1,6)}
-            self.layer1_history = {np.exp(i)/(1+np.exp(i))*self.lambda_qut: None for i in range(-1,6)}
+            self.curves_sd, self.curves_ista, self.layer1_history = {}, {}, {}
             
             for i in iterable:
                 lambi=np.exp(i)/(1+np.exp(i))*self.lambda_qut
                 if print_epochs:
                     print(f"Lambda = {np.round(lambi, 4)} :")
                 if i==-1:
-                    d = utils.train_model("regression", X_train, y_train, lambi, self.lr, self.p2, True, n_ista, print_epochs)                    
+                    d = utils.train_model("regression", self.loss_type, X_train, y_train, lambi, self.lr, self.p2, True, n_ista, print_epochs)                    
                 elif i==5:
-                    d = utils.train_model("regression", X_train, y_train, self.lambda_qut, self.lr, self.p2, False, 10000, print_epochs, init_weights=[layer1, layer2])   
+                    d = utils.train_model("regression", self.loss_type, X_train, y_train, self.lambda_qut, self.lr, self.p2, False, self.last_ista, print_epochs, init_weights=[layer1, layer2])   
                 else:
-                    d = utils.train_model("regression", X_train, y_train, lambi, self.lr, self.p2, True, n_ista, print_epochs, init_weights=[layer1, layer2])   
+                    d = utils.train_model("regression", self.loss_type, X_train, y_train, lambi, self.lr, self.p2, True, n_ista, print_epochs, init_weights=[layer1, layer2])   
                 layer1, layer2 = d["model"]
                 curves_sd, curves_ista, layer1_history = d["curves"]
                 self.curves_sd[lambi] = curves_sd
                 self.curves_ista[lambi] = curves_ista
                 self.layer1_history[lambi] = layer1_history
         else:
-            d = utils.train_model("regression", X_train, y_train, self.lambda_qut, self.lr, self.p2, True, 10000, print_epochs)   
+            d = utils.train_model("regression",self.loss_type, X_train, y_train, self.lambda_qut, self.lr, self.p2, True, self.last_ista, print_epochs)   
             layer1, layer2 = d["model"]
             curves_sd, curves_ista, layer1_history = d["curves"]
             self.curves_sd = curves_sd
