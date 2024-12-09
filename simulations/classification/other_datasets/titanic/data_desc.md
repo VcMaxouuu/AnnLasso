@@ -1,0 +1,3 @@
+- data size: 714 x 8
+- dropped Nan values
+- link : https://www.kaggle.com/competitions/titanic
