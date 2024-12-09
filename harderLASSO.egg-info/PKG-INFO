@@ -1,0 +1,6 @@
+Metadata-Version: 2.1
+Name: harderLASSO
+Version: 0.1.0
+Summary: Feature selection and data reduction through neural network training.
+Author: Maxime Van Cutsem
+Author-email: maxime.vancutsem@unige.ch
